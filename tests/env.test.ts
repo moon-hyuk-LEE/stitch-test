@@ -5,8 +5,16 @@ describe("validateEnv", () => {
   const saved = { ...process.env };
 
   afterEach(() => {
-    process.env.STITCH_API_KEY = saved.STITCH_API_KEY;
-    process.env.OLLAMA_MODEL = saved.OLLAMA_MODEL;
+    if (saved.STITCH_API_KEY === undefined) {
+      delete process.env.STITCH_API_KEY;
+    } else {
+      process.env.STITCH_API_KEY = saved.STITCH_API_KEY;
+    }
+    if (saved.OLLAMA_MODEL === undefined) {
+      delete process.env.OLLAMA_MODEL;
+    } else {
+      process.env.OLLAMA_MODEL = saved.OLLAMA_MODEL;
+    }
   });
 
   it("두 환경변수가 모두 있으면 값을 반환한다", () => {
