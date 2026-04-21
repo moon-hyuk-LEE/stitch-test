@@ -11,14 +11,16 @@ export async function scanDesigns(baseDir = "designs"): Promise<string[]> {
         try {
           await access(join(baseDir, dir.name, "DESIGN.md"));
           return dir.name;
-        } catch {
+        } catch (ignored) {
+          // access() throws when DESIGN.md is absent — that means dir has no design system, return null
           return null;
         }
       })
     );
 
     return results.filter((name): name is string => name !== null);
-  } catch {
+  } catch (ignored) {
+    // readdir() throws when baseDir doesn't exist — treat as no designs found
     return [];
   }
 }
