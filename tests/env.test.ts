@@ -17,7 +17,7 @@ describe("validateEnv", () => {
     }
   });
 
-  it("두 환경변수가 모두 있으면 값을 반환한다", () => {
+  it("STITCH_API_KEY와 OLLAMA_MODEL이 있으면 값을 반환한다", () => {
     process.env.STITCH_API_KEY = "sk-test";
     process.env.OLLAMA_MODEL = "gemma4:2b";
     expect(validateEnv()).toEqual({ stitchApiKey: "sk-test", ollamaModel: "gemma4:2b" });

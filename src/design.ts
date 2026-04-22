@@ -4,7 +4,9 @@ import { join } from "node:path";
 export async function scanDesigns(baseDir = "designs"): Promise<string[]> {
   try {
     const entries = await readdir(baseDir, { withFileTypes: true });
-    const dirs = entries.filter((e) => e.isDirectory());
+    const dirs = entries
+      .filter((e) => e.isDirectory())
+      .sort((a, b) => a.name.localeCompare(b.name));
 
     const results = await Promise.all(
       dirs.map(async (dir) => {

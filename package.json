@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "stitch": "tsx src/index.ts",
-    "test": "vitest run"
+    "stitch:edit": "tsx src/edit.ts",
+    "test": "tsc -p tsconfig.json && node dist/tests/run.js"
   },
   "dependencies": {
     "@google/stitch-sdk": "latest",

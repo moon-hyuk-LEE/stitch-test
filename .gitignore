@@ -1,4 +1,7 @@
 node_modules/
 dist/
 .env
-result/
+result/**.html
+
+tests/tmp-designs/
+tests/tmp-result/

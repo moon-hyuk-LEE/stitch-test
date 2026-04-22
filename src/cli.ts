@@ -1,0 +1,63 @@
+import { input, select } from "@inquirer/prompts";
+import { scanResultHtmlFiles } from "./output.js";
+import { scanDesigns } from "./design.js";
+
+export async function promptDesignName(): Promise<string | null> {
+  const designs = await scanDesigns();
+  const choices = [
+    ...designs.map((name) => ({ name, value: name })),
+    { name: "(none)", value: "__none__" },
+  ];
+
+  const selected = await select({
+    message: "Select design system:",
+    choices,
+  });
+
+  return selected === "__none__" ? null : selected;
+}
+
+export async function promptPageDescription(): Promise<string> {
+  return input({
+    message: "Describe the page:",
+    validate: (value) =>
+      value.trim().length > 0 || "Description cannot be empty",
+  });
+}
+
+export async function promptVariantCount(): Promise<number> {
+  const value = await input({
+    message: "How many drafts should be created? (max 5)",
+    validate: (inputValue) => {
+      const count = Number.parseInt(inputValue.trim(), 10);
+      return (
+        Number.isInteger(count) &&
+        count >= 1 &&
+        count <= 5
+      ) || "Enter a number between 1 and 5";
+    },
+  });
+
+  return Number.parseInt(value.trim(), 10);
+}
+
+export async function promptEditDescription(): Promise<string> {
+  return input({
+    message: "Describe the edit:",
+    validate: (value) =>
+      value.trim().length > 0 || "Description cannot be empty",
+  });
+}
+
+export async function promptResultHtmlFile(): Promise<string> {
+  const files = await scanResultHtmlFiles();
+
+  if (files.length === 0) {
+    throw new Error("No result HTML files were found. Generate one first with `npm run stitch`.");
+  }
+
+  return await select({
+    message: "Select result HTML file to edit:",
+    choices: files.map((name) => ({ name, value: name })),
+  });
+}
