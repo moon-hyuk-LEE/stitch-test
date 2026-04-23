@@ -5,7 +5,10 @@ import { scanDesigns, loadDesignMd } from "../src/design.js";
 import {
   buildOutputPath,
   buildProjectOutputPath,
+  buildDeterministicFolderName,
+  buildDeterministicHtmlFileName,
   saveHtml,
+  saveBinary,
   scanResultHtmlFiles,
   normalizeHtmlFileName,
   normalizeFolderName,
@@ -14,7 +17,6 @@ import { buildSystemPrompt } from "../src/generate.js";
 
 const savedEnv = {
   STITCH_API_KEY: process.env.STITCH_API_KEY,
-  OLLAMA_MODEL: process.env.OLLAMA_MODEL,
 };
 
 type TestCase = { name: string; run: () => Promise<void> | void };
@@ -24,10 +26,8 @@ const tests: TestCase[] = [
     name: "validateEnv returns stitchApiKey when present",
     run: () => {
       process.env.STITCH_API_KEY = "sk-test";
-      process.env.OLLAMA_MODEL = "gemma4:2b";
       assert.deepEqual(validateEnv(), {
         stitchApiKey: "sk-test",
-        ollamaModel: "gemma4:2b",
       });
     },
   },
@@ -35,18 +35,8 @@ const tests: TestCase[] = [
     name: "validateEnv throws when STITCH_API_KEY is missing",
     run: () => {
       delete process.env.STITCH_API_KEY;
-      process.env.OLLAMA_MODEL = "gemma4:2b";
       assert.throws(() => validateEnv(), MissingEnvError);
       assert.throws(() => validateEnv(), /STITCH_API_KEY/);
-    },
-  },
-  {
-    name: "validateEnv throws when OLLAMA_MODEL is missing",
-    run: () => {
-      process.env.STITCH_API_KEY = "sk-test";
-      delete process.env.OLLAMA_MODEL;
-      assert.throws(() => validateEnv(), MissingEnvError);
-      assert.throws(() => validateEnv(), /OLLAMA_MODEL/);
     },
   },
   {
@@ -123,6 +113,20 @@ const tests: TestCase[] = [
     },
   },
   {
+    name: "buildDeterministicHtmlFileName creates stable page names",
+    run: () => {
+      const name = buildDeterministicHtmlFileName("남성 옷 파는 쇼핑몰", "page");
+      assert.match(name, /^page-[0-9a-f]{8}\.html$/);
+    },
+  },
+  {
+    name: "buildDeterministicFolderName creates stable project names",
+    run: () => {
+      const name = buildDeterministicFolderName("남성 옷 파는 쇼핑몰", "project");
+      assert.match(name, /^project-[0-9a-f]{8}$/);
+    },
+  },
+  {
     name: "saveHtml writes HTML",
     run: async () => {
       const path = buildOutputPath("test-page.html", "tests/tmp-result", new Date("2026-04-22T00:00:00.000Z"));
@@ -138,6 +142,16 @@ const tests: TestCase[] = [
       await saveHtml("<p>hi</p>", path);
       const content = await readFile(path, "utf-8");
       assert.equal(content, "<p>hi</p>");
+    },
+  },
+  {
+    name: "saveBinary writes binary files",
+    run: async () => {
+      const path = buildOutputPath("test-image.png", "tests/tmp-result", new Date("2026-04-22T00:00:00.000Z"));
+      const data = new Uint8Array([137, 80, 78, 71]);
+      await saveBinary(data, path);
+      const content = await readFile(path);
+      assert.deepEqual(Array.from(content), [137, 80, 78, 71]);
     },
   },
   {
@@ -204,7 +218,6 @@ async function main(): Promise<void> {
   await safeRm("tests/tmp-result");
 
   process.env.STITCH_API_KEY = savedEnv.STITCH_API_KEY;
-  process.env.OLLAMA_MODEL = savedEnv.OLLAMA_MODEL;
 
   if (failed > 0) {
     process.exitCode = 1;

@@ -6,14 +6,18 @@ import { loadDesignMd } from "./design.js";
 import {
   buildSystemPrompt,
   generateEditedPage,
-  generateOutputFileName,
   GenerationError,
 } from "./generate.js";
-import { buildOutputPath, openInBrowser, saveHtml } from "./output.js";
+import {
+  buildDeterministicHtmlFileName,
+  buildOutputPath,
+  openInBrowser,
+  saveHtml,
+} from "./output.js";
 import { promptDesignName, promptEditDescription, promptResultHtmlFile } from "./cli.js";
 
 async function main(): Promise<void> {
-  const { stitchApiKey, ollamaModel } = validateEnv();
+  const { stitchApiKey } = validateEnv();
 
   const designName = await promptDesignName();
   const designMd = designName ? await loadDesignMd(designName) : null;
@@ -37,11 +41,7 @@ async function main(): Promise<void> {
       editPrompt,
     });
 
-    const fileName = await generateOutputFileName({
-      ollamaModel,
-      prompt: editPrompt,
-      fallbackName: "edit",
-    });
+    const fileName = buildDeterministicHtmlFileName(editPrompt, "edit");
     const outputPath = buildOutputPath(fileName);
     await saveHtml(html, outputPath);
 

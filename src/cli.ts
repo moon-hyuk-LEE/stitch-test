@@ -25,22 +25,6 @@ export async function promptPageDescription(): Promise<string> {
   });
 }
 
-export async function promptVariantCount(): Promise<number> {
-  const value = await input({
-    message: "How many drafts should be created? (max 5)",
-    validate: (inputValue) => {
-      const count = Number.parseInt(inputValue.trim(), 10);
-      return (
-        Number.isInteger(count) &&
-        count >= 1 &&
-        count <= 5
-      ) || "Enter a number between 1 and 5";
-    },
-  });
-
-  return Number.parseInt(value.trim(), 10);
-}
-
 export async function promptEditDescription(): Promise<string> {
   return input({
     message: "Describe the edit:",

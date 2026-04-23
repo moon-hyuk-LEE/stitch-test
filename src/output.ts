@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdir, readdir, stat, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import open from "open";
@@ -37,8 +38,18 @@ export function normalizeFolderName(value: string, fallback = "project"): string
   return base.length > 0 ? base : fallback;
 }
 
-export function buildOutputFileNameFromText(value: string, fallback = "page"): string {
-  return normalizeHtmlFileName(value, fallback);
+export function buildDeterministicHtmlFileName(
+  value: string,
+  fallback = "page"
+): string {
+  return normalizeHtmlFileName(buildDeterministicBaseName(value, fallback), fallback);
+}
+
+export function buildDeterministicFolderName(
+  value: string,
+  fallback = "project"
+): string {
+  return normalizeFolderName(buildDeterministicBaseName(value, fallback), fallback);
 }
 
 export function buildDateFolderPath(baseDir = RESULT_DIR, now = new Date()): string {
@@ -55,9 +66,23 @@ export function buildProjectOutputPath(
   return join(buildDateFolderPath(baseDir, now), normalizeFolderName(projectFolder), fileName);
 }
 
+function buildDeterministicBaseName(value: string, fallback: string): string {
+  const trimmed = value.trim().toLowerCase();
+  const words = trimmed.match(/[a-z0-9]+/g)?.slice(0, 4).join("-") ?? "";
+  const hash = createHash("sha1").update(trimmed || fallback).digest("hex").slice(0, 8);
+  const base = words.length > 0 ? words : fallback;
+
+  return `${base}-${hash}`;
+}
+
 export async function saveHtml(html: string, outputPath: string): Promise<void> {
   await mkdir(dirname(outputPath), { recursive: true });
   await writeFile(outputPath, html, "utf-8");
+}
+
+export async function saveBinary(data: Uint8Array, outputPath: string): Promise<void> {
+  await mkdir(dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, Buffer.from(data));
 }
 
 export async function scanResultHtmlFiles(baseDir = RESULT_DIR): Promise<string[]> {

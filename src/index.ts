@@ -3,25 +3,28 @@ import { validateEnv } from "./env.js";
 import { loadDesignMd } from "./design.js";
 import {
   buildSystemPrompt,
-  generateOutputFileName,
-  generateProjectFolderName,
   generatePageVariants,
   GenerationError,
 } from "./generate.js";
-import { buildProjectOutputPath, openInBrowser, saveHtml } from "./output.js";
+import {
+  buildDeterministicFolderName,
+  buildDeterministicHtmlFileName,
+  buildProjectOutputPath,
+  openInBrowser,
+  saveBinary,
+  saveHtml,
+} from "./output.js";
 import {
   promptDesignName,
   promptPageDescription,
-  promptVariantCount,
 } from "./cli.js";
 
 async function main(): Promise<void> {
-  const { stitchApiKey, ollamaModel } = validateEnv();
+  const { stitchApiKey } = validateEnv();
 
   const designName = await promptDesignName();
   const designMd = designName ? await loadDesignMd(designName) : null;
   const userPrompt = await promptPageDescription();
-  const variantCount = await promptVariantCount();
   const systemPrompt = buildSystemPrompt(designMd);
 
   try {
@@ -31,34 +34,35 @@ async function main(): Promise<void> {
       stitchApiKey,
       systemPrompt,
       userPrompt,
-      variantCount,
+      variantCount: 1,
     });
-    const projectFolder = await generateProjectFolderName({
-      ollamaModel,
-      prompt: userPrompt,
-      fallbackName: "project",
-    });
+    const projectFolder = buildDeterministicFolderName(userPrompt, "project");
 
-    const usedNames = new Set<string>();
     const savedPaths: string[] = [];
 
-    for (const [index, page] of pages.entries()) {
-      const fileName = await generateOutputFileName({
-        ollamaModel,
-        prompt: `${userPrompt}\n\n${page.variantPrompt}`,
-        fallbackName: `page-${index + 1}`,
-      });
-      const outputPath = buildProjectOutputPath(
-        projectFolder,
-        makeVariantFileName(fileName, index + 1, usedNames)
+    for (const page of pages) {
+      const fileName = buildDeterministicHtmlFileName(
+        `${userPrompt}\n\n${page.variantPrompt}`,
+        "page"
       );
-      await saveHtml(page.html, outputPath);
+      const outputFileName =
+        page.kind === "html"
+          ? fileName
+          : replaceFileExtension(fileName, page.imageExtension);
+      const outputPath = buildProjectOutputPath(projectFolder, outputFileName);
+
+      if (page.kind === "html") {
+        await saveHtml(page.html, outputPath);
+      } else {
+        await saveBinary(page.imageBytes, outputPath);
+      }
+
       savedPaths.push(outputPath);
-      console.log(`Saved: ${outputPath}`);
+      console.log(`Saved ${page.kind}: ${outputPath}`);
     }
 
     if (savedPaths.length > 0) {
-      console.log("Opening drafts in browser...");
+      console.log("Opening result in browser...");
       for (const savedPath of savedPaths) {
         await openInBrowser(savedPath);
       }
@@ -79,21 +83,9 @@ main().catch((error) => {
   process.exit(1);
 });
 
-function makeVariantFileName(
-  fileName: string,
-  variantIndex: number,
-  usedNames: Set<string>
-): string {
+function replaceFileExtension(fileName: string, extension: string): string {
   const dotIndex = fileName.lastIndexOf(".");
   const baseName = dotIndex > 0 ? fileName.slice(0, dotIndex) : fileName;
-  const extension = dotIndex > 0 ? fileName.slice(dotIndex) : "";
-  let candidate = `${baseName}-${variantIndex}${extension}`;
-
-  while (usedNames.has(candidate)) {
-    variantIndex += 1;
-    candidate = `${baseName}-${variantIndex}${extension}`;
-  }
-
-  usedNames.add(candidate);
-  return candidate;
+  const safeExtension = extension.startsWith(".") ? extension : `.${extension}`;
+  return `${baseName}${safeExtension}`;
 }

@@ -10,30 +10,16 @@ describe("validateEnv", () => {
     } else {
       process.env.STITCH_API_KEY = saved.STITCH_API_KEY;
     }
-    if (saved.OLLAMA_MODEL === undefined) {
-      delete process.env.OLLAMA_MODEL;
-    } else {
-      process.env.OLLAMA_MODEL = saved.OLLAMA_MODEL;
-    }
   });
 
-  it("STITCH_API_KEY와 OLLAMA_MODEL이 있으면 값을 반환한다", () => {
+  it("STITCH_API_KEY가 있으면 값을 반환한다", () => {
     process.env.STITCH_API_KEY = "sk-test";
-    process.env.OLLAMA_MODEL = "gemma4:2b";
-    expect(validateEnv()).toEqual({ stitchApiKey: "sk-test", ollamaModel: "gemma4:2b" });
+    expect(validateEnv()).toEqual({ stitchApiKey: "sk-test" });
   });
 
   it("STITCH_API_KEY 없으면 MissingEnvError를 던진다", () => {
     delete process.env.STITCH_API_KEY;
-    process.env.OLLAMA_MODEL = "gemma4:2b";
     expect(() => validateEnv()).toThrow(MissingEnvError);
     expect(() => validateEnv()).toThrow("STITCH_API_KEY");
-  });
-
-  it("OLLAMA_MODEL 없으면 MissingEnvError를 던진다", () => {
-    process.env.STITCH_API_KEY = "sk-test";
-    delete process.env.OLLAMA_MODEL;
-    expect(() => validateEnv()).toThrow(MissingEnvError);
-    expect(() => validateEnv()).toThrow("OLLAMA_MODEL");
   });
 });

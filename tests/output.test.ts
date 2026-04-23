@@ -3,7 +3,10 @@ import { readFile, rm } from "node:fs/promises";
 import {
   buildOutputPath,
   buildProjectOutputPath,
+  buildDeterministicHtmlFileName,
+  buildDeterministicFolderName,
   saveHtml,
+  saveBinary,
   normalizeHtmlFileName,
   normalizeFolderName,
 } from "../src/output.js";
@@ -36,6 +39,22 @@ describe("normalizeFolderName", () => {
   });
 });
 
+describe("buildDeterministicHtmlFileName", () => {
+  it("프롬프트 기반의 안정적인 파일명을 만든다", () => {
+    expect(buildDeterministicHtmlFileName("남성 옷 파는 쇼핑몰", "page")).toMatch(
+      /^page-[0-9a-f]{8}\.html$/
+    );
+  });
+});
+
+describe("buildDeterministicFolderName", () => {
+  it("프롬프트 기반의 안정적인 폴더명을 만든다", () => {
+    expect(buildDeterministicFolderName("남성 옷 파는 쇼핑몰", "project")).toMatch(
+      /^project-[0-9a-f]{8}$/
+    );
+  });
+});
+
 describe("buildProjectOutputPath", () => {
   it("YYYY-MM-DD/project/file.html 형식의 경로를 반환한다", () => {
     const path = buildProjectOutputPath(
@@ -63,5 +82,15 @@ describe("saveHtml", () => {
     await saveHtml("<p>hi</p>", path);
     const content = await readFile(path, "utf-8");
     expect(content).toBe("<p>hi</p>");
+  });
+});
+
+describe("saveBinary", () => {
+  it("바이너리 데이터를 파일로 저장한다", async () => {
+    const path = buildOutputPath("test-image.png", TMP_DIR, new Date("2026-04-22T00:00:00.000Z"));
+    const data = new Uint8Array([137, 80, 78, 71]);
+    await saveBinary(data, path);
+    const content = await readFile(path);
+    expect(Array.from(content)).toEqual([137, 80, 78, 71]);
   });
 });

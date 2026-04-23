@@ -7,12 +7,10 @@ export class MissingEnvError extends Error {
   }
 }
 
-export function validateEnv(): { stitchApiKey: string; ollamaModel: string } {
+export function validateEnv(): { stitchApiKey: string } {
   const stitchApiKey = process.env.STITCH_API_KEY;
-  const ollamaModel = process.env.OLLAMA_MODEL;
 
   if (!stitchApiKey) throw new MissingEnvError("STITCH_API_KEY");
-  if (!ollamaModel) throw new MissingEnvError("OLLAMA_MODEL");
 
-  return { stitchApiKey, ollamaModel };
+  return { stitchApiKey };
 }
