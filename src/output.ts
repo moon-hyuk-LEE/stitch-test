@@ -42,14 +42,14 @@ export function buildDeterministicHtmlFileName(
   value: string,
   fallback = "page"
 ): string {
-  return normalizeHtmlFileName(buildDeterministicBaseName(value, fallback), fallback);
+  return normalizeHtmlFileName(buildDeterministicHashBase(value, fallback), fallback);
 }
 
 export function buildDeterministicFolderName(
   value: string,
   fallback = "project"
 ): string {
-  return normalizeFolderName(buildDeterministicBaseName(value, fallback), fallback);
+  return normalizeFolderName(buildDeterministicHashBase(value, fallback), fallback);
 }
 
 export function buildDateFolderPath(baseDir = RESULT_DIR, now = new Date()): string {
@@ -66,18 +66,24 @@ export function buildProjectOutputPath(
   return join(buildDateFolderPath(baseDir, now), normalizeFolderName(projectFolder), fileName);
 }
 
-function buildDeterministicBaseName(value: string, fallback: string): string {
-  const trimmed = value.trim().toLowerCase();
-  const words = trimmed.match(/[a-z0-9]+/g)?.slice(0, 4).join("-") ?? "";
-  const hash = createHash("sha1").update(trimmed || fallback).digest("hex").slice(0, 8);
-  const base = words.length > 0 ? words : fallback;
+export function buildMetadataPath(htmlPath: string): string {
+  return htmlPath.replace(/\.html?$/i, ".meta.json");
+}
 
-  return `${base}-${hash}`;
+function buildDeterministicHashBase(value: string, fallback: string): string {
+  const trimmed = value.trim().toLowerCase();
+  const hash = createHash("sha1").update(trimmed || fallback).digest("hex").slice(0, 8);
+  return `${fallback}-${hash}`;
 }
 
 export async function saveHtml(html: string, outputPath: string): Promise<void> {
   await mkdir(dirname(outputPath), { recursive: true });
   await writeFile(outputPath, html, "utf-8");
+}
+
+export async function saveJson(value: unknown, outputPath: string): Promise<void> {
+  await mkdir(dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, `${JSON.stringify(value, null, 2)}\n`, "utf-8");
 }
 
 export async function saveBinary(data: Uint8Array, outputPath: string): Promise<void> {

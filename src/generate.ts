@@ -19,6 +19,8 @@ export type GeneratedVariant =
       kind: "html";
       variantPrompt: string;
       html: string;
+      projectId: string;
+      screenId: string;
     }
   | {
       kind: "image";
@@ -50,11 +52,13 @@ export async function generatePage(opts: {
   stitchApiKey: string;
   systemPrompt: string;
   userPrompt: string;
+  additionalPagesPrompt?: string;
 }): Promise<string> {
   const [first] = await generatePageVariants({
     stitchApiKey: opts.stitchApiKey,
     systemPrompt: opts.systemPrompt,
     userPrompt: opts.userPrompt,
+    additionalPagesPrompt: opts.additionalPagesPrompt ?? "",
     variantCount: 1,
   });
 
@@ -69,6 +73,7 @@ export async function generatePageVariants(opts: {
   stitchApiKey: string;
   systemPrompt: string;
   userPrompt: string;
+  additionalPagesPrompt: string;
   variantCount: number;
 }): Promise<GeneratedVariant[]> {
   const prompt = buildTaskPrompt(opts.systemPrompt, "User request:", opts.userPrompt);
@@ -76,6 +81,7 @@ export async function generatePageVariants(opts: {
     opts.stitchApiKey,
     buildProjectTitle(opts.userPrompt),
     prompt,
+    opts.additionalPagesPrompt,
     opts.variantCount
   );
 }
@@ -110,7 +116,7 @@ async function generateHtml(
   projectTitle: string,
   prompt: string
 ): Promise<string> {
-  const [first] = await generateHtmlVariants(stitchApiKey, projectTitle, prompt, 1);
+  const [first] = await generateHtmlVariants(stitchApiKey, projectTitle, prompt, "", 1);
 
   if (!first) {
     throw new GenerationError("No page was generated.");
@@ -123,6 +129,7 @@ async function generateHtmlVariants(
   stitchApiKey: string,
   projectTitle: string,
   prompt: string,
+  additionalPagesPrompt: string,
   variantCount: number
 ): Promise<GeneratedVariant[]> {
   const client = new StitchToolClient({ apiKey: stitchApiKey });
@@ -135,43 +142,39 @@ async function generateHtmlVariants(
     );
     const results: GeneratedVariant[] = [];
 
-    for (let index = 0; index < variantCount; index += 1) {
-      const variantPrompt = buildVariantPrompt(prompt, index + 1, variantCount);
-      const screen = await generateScreenWithRecovery({
+    const mainVariantPrompt = buildVariantPrompt(prompt, 1, variantCount);
+    const mainScreen = await generateScreenWithRecovery({
+      client,
+      project,
+      variantPrompt: mainVariantPrompt,
+      variantLabel: "main screen",
+    });
+    results.push(await loadGeneratedVariant(mainScreen, mainVariantPrompt, "main screen"));
+
+    if (variantCount > 1) {
+      const followUpPrompt = buildFollowUpPrompt(
+        prompt,
+        additionalPagesPrompt,
+        variantCount - 1
+      );
+      const followUpScreens = await generateVariantScreensWithRecovery({
         client,
         project,
-        variantPrompt,
-        variantLabel: `screen ${index + 1}`,
+        sourceScreen: mainScreen,
+        prompt: followUpPrompt,
+        variantCount: variantCount - 1,
       });
-      try {
-        const htmlUrl = await retryStitchOperation(
-          () => screen.getHtml(),
-          `get html ${index + 1}`,
-          5,
-          (result) => result.trim().length === 0
-        );
-        const html = await loadHtml(htmlUrl);
-        results.push({ kind: "html", html, variantPrompt });
-      } catch (error) {
-        if (!(error instanceof GenerationError)) {
-          throw error;
-        }
 
-        console.warn(`get html ${index + 1} failed; trying image fallback.`);
-        const imageUrl = await retryStitchOperation(
-          () => screen.getImage(),
-          `get image ${index + 1}`,
-          5,
-          (result) => result.trim().length === 0
+      for (let index = 0; index < followUpScreens.length; index += 1) {
+        const variantIndex = index + 2;
+        const variantPrompt = buildVariantPrompt(prompt, variantIndex, variantCount);
+        results.push(
+          await loadGeneratedVariant(
+            followUpScreens[index],
+            variantPrompt,
+            `screen ${variantIndex}`
+          )
         );
-        const image = await loadImage(imageUrl);
-        results.push({
-          kind: "image",
-          variantPrompt,
-          imageBytes: image.bytes,
-          imageMimeType: image.mimeType,
-          imageExtension: image.extension,
-        });
       }
     }
 
@@ -182,12 +185,170 @@ async function generateHtmlVariants(
 }
 
 function buildVariantPrompt(basePrompt: string, index: number, total: number): string {
+  if (index === 1) {
+    return [
+      basePrompt,
+      "",
+      `Main page of ${total}:`,
+      "Create the primary page for this product. Establish the header, navigation, typography, spacing, and overall visual system that the rest of the pages should match.",
+    ].join("\n");
+  }
+
   return [
     basePrompt,
     "",
-    `Draft ${index} of ${total}:`,
-    "Make this a distinct, production-ready variation while preserving the same requirements.",
+    `Additional page ${index - 1} of ${total - 1}:`,
+    "Create a related follow-up page that reuses the same header, navigation, spacing scale, and visual language as the main page.",
+    "Only vary the body content and page purpose. Keep the brand and shell consistent.",
   ].join("\n");
+}
+
+function buildFollowUpPrompt(
+  basePrompt: string,
+  additionalPagesPrompt: string,
+  followUpCount: number
+): string {
+  return [
+    basePrompt,
+    "",
+    "Additional pages brief:",
+    additionalPagesPrompt,
+    "",
+    `Create ${followUpCount} additional pages that follow the main page.`,
+    "Keep the same header, navigation, typography, spacing, and component style as the main page.",
+    "The additional pages should feel like a connected product flow, not separate redesigns.",
+    "Vary the page content and purpose, but preserve the shell and design language.",
+  ].join("\n");
+}
+
+async function loadGeneratedVariant(
+  screen: Screen,
+  variantPrompt: string,
+  label: string
+): Promise<GeneratedVariant> {
+  try {
+    const htmlUrl = await retryStitchOperation(
+      () => screen.getHtml(),
+      `get html ${label}`,
+      5,
+      (result) => result.trim().length === 0
+    );
+    const html = await loadHtml(htmlUrl);
+    return {
+      kind: "html",
+      html,
+      variantPrompt,
+      projectId: screen.projectId,
+      screenId: screen.id,
+    };
+  } catch (error) {
+    if (!(error instanceof GenerationError)) {
+      throw error;
+    }
+
+    console.warn(`get html ${label} failed; trying image fallback.`);
+    const imageUrl = await retryStitchOperation(
+      () => screen.getImage(),
+      `get image ${label}`,
+      5,
+      (result) => result.trim().length === 0
+    );
+    const image = await loadImage(imageUrl);
+    return {
+      kind: "image",
+      variantPrompt,
+      imageBytes: image.bytes,
+      imageMimeType: image.mimeType,
+      imageExtension: image.extension,
+    };
+  }
+}
+
+async function generateVariantScreensWithRecovery(opts: {
+  client: StitchToolClient;
+  project: Project;
+  sourceScreen: Screen;
+  prompt: string;
+  variantCount: number;
+}): Promise<Screen[]> {
+  const beforeScreens = await opts.project.screens();
+  const beforeIds = new Set(beforeScreens.map((screen) => screen.id));
+
+  try {
+    const raw = await retryStitchOperation(
+      () =>
+        opts.client.callTool("generate_variants", {
+          projectId: opts.project.projectId,
+          selectedScreenIds: [opts.sourceScreen.id],
+          prompt: opts.prompt,
+          variantOptions: {
+            variantCount: opts.variantCount,
+            creativeRange: "REFINE",
+            aspects: ["LAYOUT", "TEXT_CONTENT"],
+          },
+          deviceType: "DESKTOP",
+        }),
+      "generate follow-up variants"
+    );
+
+    const recovered = extractScreensFromVariantResponse(
+      opts.client,
+      opts.project.projectId,
+      raw
+    );
+    if (recovered.length > 0) {
+      return recovered.slice(0, opts.variantCount);
+    }
+  } catch (error) {
+    if (!(error instanceof Error) || !isProjectionFailure(error)) {
+      throw error;
+    }
+
+    console.warn("follow-up variants projection failed; trying to recover from project screens.");
+  }
+
+  return await recoverLatestGeneratedScreens(opts.project, beforeIds, opts.variantCount);
+}
+
+function extractScreensFromVariantResponse(
+  client: StitchToolClient,
+  projectId: string,
+  raw: unknown
+): Screen[] {
+  const anyRaw = raw as any;
+  const projectedScreens =
+    anyRaw?.outputComponents?.[1]?.design?.screens ??
+    anyRaw?.outputComponents?.[0]?.design?.screens ??
+    [];
+
+  return projectedScreens.map((screen: any) => new Screen(client, { ...screen, projectId }));
+}
+
+async function recoverLatestGeneratedScreens(
+  project: Project,
+  beforeIds: Set<string>,
+  expectedCount: number
+): Promise<Screen[]> {
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    const screens = await project.screens();
+    const newest = screens.filter((screen) => !beforeIds.has(screen.id));
+
+    if (newest.length >= expectedCount) {
+      return newest.slice(0, expectedCount);
+    }
+
+    if (attempt < 5) {
+      const delayMs = attempt * 1500;
+      console.warn(
+        `follow-up variants are not visible yet; retrying screen lookup in ${delayMs}ms (attempt ${attempt + 1}/5)`
+      );
+      await delay(delayMs);
+    }
+  }
+
+  throw new GenerationError(
+    `follow-up variants could not be recovered from Stitch after generation completed.`
+  );
 }
 
 async function retryStitchOperation<T>(

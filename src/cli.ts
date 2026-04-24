@@ -25,6 +25,14 @@ export async function promptPageDescription(): Promise<string> {
   });
 }
 
+export async function promptAdditionalPagesDescription(): Promise<string> {
+  return input({
+    message: "Describe the additional pages:",
+    validate: (value) =>
+      value.trim().length > 0 || "Description cannot be empty",
+  });
+}
+
 export async function promptEditDescription(): Promise<string> {
   return input({
     message: "Describe the edit:",

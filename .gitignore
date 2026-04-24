@@ -2,6 +2,8 @@ node_modules/
 dist/
 .env
 result/**.html
+result/*
+!result/.gitkeep
 
 tests/tmp-designs/
 tests/tmp-result/

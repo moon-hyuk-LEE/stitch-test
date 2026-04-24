@@ -9,12 +9,15 @@ import {
 import {
   buildDeterministicFolderName,
   buildDeterministicHtmlFileName,
+  buildMetadataPath,
   buildProjectOutputPath,
   openInBrowser,
   saveBinary,
   saveHtml,
+  saveJson,
 } from "./output.js";
 import {
+  promptAdditionalPagesDescription,
   promptDesignName,
   promptPageDescription,
 } from "./cli.js";
@@ -25,6 +28,7 @@ async function main(): Promise<void> {
   const designName = await promptDesignName();
   const designMd = designName ? await loadDesignMd(designName) : null;
   const userPrompt = await promptPageDescription();
+  const additionalPagesPrompt = await promptAdditionalPagesDescription();
   const systemPrompt = buildSystemPrompt(designMd);
 
   try {
@@ -34,7 +38,8 @@ async function main(): Promise<void> {
       stitchApiKey,
       systemPrompt,
       userPrompt,
-      variantCount: 1,
+      additionalPagesPrompt,
+      variantCount: 4,
     });
     const projectFolder = buildDeterministicFolderName(userPrompt, "project");
 
@@ -53,6 +58,16 @@ async function main(): Promise<void> {
 
       if (page.kind === "html") {
         await saveHtml(page.html, outputPath);
+        await saveJson(
+          {
+            kind: "html",
+            projectId: page.projectId,
+            screenId: page.screenId,
+            variantPrompt: page.variantPrompt,
+            generatedAt: new Date().toISOString(),
+          },
+          buildMetadataPath(outputPath)
+        );
       } else {
         await saveBinary(page.imageBytes, outputPath);
       }

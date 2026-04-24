@@ -3,9 +3,11 @@ import { readFile, rm } from "node:fs/promises";
 import {
   buildOutputPath,
   buildProjectOutputPath,
+  buildMetadataPath,
   buildDeterministicHtmlFileName,
   buildDeterministicFolderName,
   saveHtml,
+  saveJson,
   saveBinary,
   normalizeHtmlFileName,
   normalizeFolderName,
@@ -92,5 +94,22 @@ describe("saveBinary", () => {
     await saveBinary(data, path);
     const content = await readFile(path);
     expect(Array.from(content)).toEqual([137, 80, 78, 71]);
+  });
+});
+
+describe("buildMetadataPath", () => {
+  it("html 확장자를 meta.json으로 바꾼다", () => {
+    expect(buildMetadataPath("tests/tmp-result/2026-04-22/page.html")).toBe(
+      "tests/tmp-result/2026-04-22/page.meta.json"
+    );
+  });
+});
+
+describe("saveJson", () => {
+  it("JSON을 파일로 저장한다", async () => {
+    const path = `${TMP_DIR}/meta.json`;
+    await saveJson({ projectId: "p1" }, path);
+    const content = await readFile(path, "utf-8");
+    expect(content).toContain('"projectId": "p1"');
   });
 });

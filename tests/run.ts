@@ -7,7 +7,9 @@ import {
   buildProjectOutputPath,
   buildDeterministicFolderName,
   buildDeterministicHtmlFileName,
+  buildMetadataPath,
   saveHtml,
+  saveJson,
   saveBinary,
   scanResultHtmlFiles,
   normalizeHtmlFileName,
@@ -152,6 +154,24 @@ const tests: TestCase[] = [
       await saveBinary(data, path);
       const content = await readFile(path);
       assert.deepEqual(Array.from(content), [137, 80, 78, 71]);
+    },
+  },
+  {
+    name: "buildMetadataPath replaces html extension",
+    run: () => {
+      assert.equal(
+        buildMetadataPath("tests/tmp-result/2026-04-22/page.html"),
+        "tests/tmp-result/2026-04-22/page.meta.json"
+      );
+    },
+  },
+  {
+    name: "saveJson writes json files",
+    run: async () => {
+      const path = "tests/tmp-result/2026-04-22/meta.json";
+      await saveJson({ kind: "html", projectId: "p1" }, path);
+      const content = await readFile(path, "utf-8");
+      assert.ok(content.includes('"projectId": "p1"'));
     },
   },
   {
